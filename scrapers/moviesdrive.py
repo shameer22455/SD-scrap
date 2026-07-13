@@ -3,6 +3,8 @@ from bs4 import BeautifulSoup
 import json
 import urllib.parse
 import requests
+import base64
+import utils
 
 def get_base_url():
     try:
@@ -31,7 +33,25 @@ def get_streams(query):
     for btn in movie_soup.select("a.maxbutton, a[href*='drive']"):
         link = btn.get("href")
         if link:
-            name = btn.text.strip() or "Download"
-            streams.append({"name": "MoviesDrive - " + name, "url": link})
+            # First level intermediate page
+            if "url=" in link:
+                try:
+                    b64 = link.split("url=")[-1]
+                    link = base64.b64decode(b64).decode('utf-8')
+                except: pass
+            
+            try:
+                # Fetch intermediate page
+                doc_res = scraper.get(link)
+                doc_soup = BeautifulSoup(doc_res.text, 'html.parser')
+                # Find source link
+                source_a = doc_soup.select_one("a.maxbutton-1, a.maxbutton-5")
+                source = source_a.get("href") if source_a else link
+                
+                resolved = utils.resolve_link(source, scraper, "MoviesDrive")
+                streams.extend(resolved)
+            except Exception as e:
+                print("moviesdrive extract error", e)
+                streams.append({"name": "MoviesDrive - " + btn.text.strip(), "url": link})
             
     return json.dumps(streams)

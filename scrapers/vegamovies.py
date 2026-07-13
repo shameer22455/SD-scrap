@@ -3,6 +3,8 @@ from bs4 import BeautifulSoup
 import json
 import urllib.parse
 import requests
+import base64
+import utils
 
 def get_base_url():
     try:
@@ -23,6 +25,7 @@ def get_streams(query):
         data = res.json()
         if not data.get("hits"): return "[]"
         movie_url = data["hits"][0]["document"]["permalink"]
+        if movie_url.startswith("/"): movie_url = base_url + movie_url
     except:
         return "[]"
     
@@ -30,12 +33,20 @@ def get_streams(query):
     movie_soup = BeautifulSoup(movie_res.text, 'html.parser')
     
     streams = []
-    buttons = movie_soup.select("a.maxbutton-download-links, a.btn, a[href*='vcloud']")
+    buttons = movie_soup.select("a.maxbutton-download-links, a.btn, a[href*='vcloud'], a[href*='hubcloud']")
     for btn in buttons:
         link = btn.get("href")
         if not link: continue
         name = btn.text.strip() or "Download Link"
-        if "vcloud" in link.lower() or "download" in link.lower() or "fastserver" in link.lower():
-            streams.append({"name": "VegaMovies - " + name, "url": link})
+        
+        if "url=" in link:
+            try:
+                b64 = link.split("url=")[-1]
+                link = base64.b64decode(b64).decode('utf-8')
+            except: pass
+
+        if "vcloud" in link.lower() or "hubcloud" in link.lower() or "download" in link.lower() or "fastserver" in link.lower():
+            resolved = utils.resolve_link(link, scraper, "VegaMovies")
+            streams.extend(resolved)
             
     return json.dumps(streams)

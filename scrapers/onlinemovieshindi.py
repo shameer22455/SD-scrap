@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 import json
 import urllib.parse
 import requests
+import utils
 
 # OnlineMoviesHindi is not in the urls.json officially so we just keep its latest known or fallback
 def get_base_url():
@@ -25,9 +26,21 @@ def get_streams(query):
     movie_soup = BeautifulSoup(movie_res.text, 'html.parser')
     
     streams = []
-    for iframe in movie_soup.select("iframe"):
-        src = iframe.get("src")
-        if src and ("video" in src or "embed" in src or "player" in src):
-            streams.append({"name": "OnlineMoviesHindi - Player", "url": src})
-            
+    
+    # Try button-shadow links
+    buttons = movie_soup.select("a.button-shadow, a.maxbutton")
+    for btn in buttons:
+        link = btn.get("href")
+        if not link: continue
+        name = btn.text.strip() or "Download Link"
+        resolved = utils.resolve_link(link, scraper, "OnlineMoviesHindi")
+        streams.extend(resolved)
+        
+    # Fallback to iframes if no buttons found
+    if not streams:
+        for iframe in movie_soup.select("iframe"):
+            src = iframe.get("src")
+            if src and ("video" in src or "embed" in src or "player" in src):
+                streams.append({"name": "OnlineMoviesHindi - Player", "url": src})
+                
     return json.dumps(streams)

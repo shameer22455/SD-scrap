@@ -5,6 +5,7 @@ import base64
 import json
 import urllib.parse
 import requests
+import utils
 
 def get_base_url():
     try:
@@ -47,6 +48,13 @@ def get_streams(query):
             except:
                 pass
                 
-        streams.append({"name": "BollyFlix - " + name, "url": link})
+        if "fastdlserver" in link:
+            # fastdlserver redirects to the actual link via location header
+            r = scraper.get(link, allow_redirects=False)
+            loc = r.headers.get("Location")
+            if loc: link = loc
+            
+        resolved = utils.resolve_link(link, scraper, "BollyFlix")
+        streams.extend(resolved)
         
     return json.dumps(streams)

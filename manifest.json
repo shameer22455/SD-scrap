@@ -3,32 +3,38 @@
     {
       "id": "bollyflix",
       "name": "BollyFlix",
-      "version": 1,
+      "version": 2,
       "url": "https://raw.githubusercontent.com/shameer22455/SD-scrap/main/scrapers/bollyflix.py"
     },
     {
       "id": "vegamovies",
       "name": "VegaMovies",
-      "version": 1,
+      "version": 2,
       "url": "https://raw.githubusercontent.com/shameer22455/SD-scrap/main/scrapers/vegamovies.py"
     },
     {
       "id": "moviesdrive",
       "name": "MoviesDrive",
-      "version": 1,
+      "version": 2,
       "url": "https://raw.githubusercontent.com/shameer22455/SD-scrap/main/scrapers/moviesdrive.py"
     },
     {
       "id": "moviesmod",
       "name": "MoviesMod",
-      "version": 1,
+      "version": 2,
       "url": "https://raw.githubusercontent.com/shameer22455/SD-scrap/main/scrapers/moviesmod.py"
     },
     {
       "id": "onlinemovieshindi",
       "name": "OnlineMoviesHindi",
-      "version": 1,
+      "version": 2,
       "url": "https://raw.githubusercontent.com/shameer22455/SD-scrap/main/scrapers/onlinemovieshindi.py"
+    },
+    {
+      "id": "utils",
+      "name": "Utilities",
+      "version": 2,
+      "url": "https://raw.githubusercontent.com/shameer22455/SD-scrap/main/scrapers/utils.py"
     }
   ]
 }
