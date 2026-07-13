@@ -44,12 +44,30 @@ def get_streams(query):
                 # Fetch intermediate page
                 doc_res = scraper.get(link)
                 doc_soup = BeautifulSoup(doc_res.text, 'html.parser')
-                # Find source link
-                source_a = doc_soup.select_one("a.maxbutton-1, a.maxbutton-5")
-                source = source_a.get("href") if source_a else link
                 
-                resolved = utils.resolve_link(source, scraper, "MoviesMod")
-                streams.extend(resolved)
+                # If it's a movie page, it has maxbutton-1
+                source_a = doc_soup.select_one("a.maxbutton-1, a.maxbutton-5")
+                if source_a:
+                    source = source_a.get("href")
+                    resolved = utils.resolve_link(source, scraper, "MoviesMod")
+                    streams.extend(resolved)
+                else:
+                    # It might be an episode list page (episodes.modpro.blog)
+                    h_tags = doc_soup.select("h3 a, h4 a")
+                    for h_tag in h_tags:
+                        ep_url = h_tag.get("href")
+                        if ep_url:
+                            # It's usually a vcloud or driveleech link
+                            resolved = utils.resolve_link(ep_url, scraper, "MoviesMod")
+                            # Try to get episode name from the h3 text
+                            ep_name = h_tag.parent.text.strip()
+                            for r in resolved:
+                                r["name"] = f"MoviesMod - {ep_name}"
+                            streams.extend(resolved)
+                            
+                    if not h_tags:
+                        # Fallback
+                        streams.append({"name": "MoviesMod - " + btn.text.strip(), "url": link})
             except Exception as e:
                 print("moviesmod extract error", e)
                 streams.append({"name": "MoviesMod - " + btn.text.strip(), "url": link})

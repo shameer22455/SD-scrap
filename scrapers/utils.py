@@ -274,5 +274,18 @@ def resolve_link(url, scraper, source_name="MoviesMod"):
         return resolve_vcloud(url, scraper)
     elif "gdflix" in url:
         return resolve_gdflix(url, scraper)
+    elif "linksmod" in url or "shareus" in url:
+        try:
+            res = scraper.get(url)
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(res.text, 'html.parser')
+            a = soup.select_one("div.view-well a")
+            if a:
+                inner_url = a.get("href")
+                if inner_url:
+                    return resolve_link(inner_url, scraper, source_name)
+        except Exception as e:
+            print("linksmod error", e)
+            pass
     else:
         return [{"name": f"[{source_name}] Download", "url": url}]
