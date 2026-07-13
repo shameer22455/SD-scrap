@@ -7,34 +7,18 @@ import moviesdrive
 import moviesmod
 import onlinemovieshindi
 
-query = "Deadpool"
+query = "Mirzapur"
+season = 3
+episode = 1
 
-print("--- Testing Bollyflix ---")
+print(f"--- Testing Bollyflix for TV Show (S{season} E{episode}) ---")
 try:
-    print(bollyflix.get_streams(query))
+    print(bollyflix.get_episode_streams(query, season, episode))
 except Exception as e:
     print(f"Error: {e}")
 
-print("\n--- Testing VegaMovies ---")
+print(f"\n--- Testing MoviesMod for TV Show (S{season} E{episode}) ---")
 try:
-    print(vegamovies.get_streams(query))
-except Exception as e:
-    print(f"Error: {e}")
-
-print("\n--- Testing MoviesDrive ---")
-try:
-    print(moviesdrive.get_streams(query))
-except Exception as e:
-    print(f"Error: {e}")
-
-print("\n--- Testing MoviesMod ---")
-try:
-    print(moviesmod.get_streams(query))
-except Exception as e:
-    print(f"Error: {e}")
-
-print("\n--- Testing OnlineMoviesHindi ---")
-try:
-    print(onlinemovieshindi.get_streams(query))
+    print(moviesmod.get_episode_streams(query, season, episode))
 except Exception as e:
     print(f"Error: {e}")
