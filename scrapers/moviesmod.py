@@ -53,23 +53,33 @@ def get_streams(query):
                     streams.extend(resolved)
                 else:
                     # It might be an episode list page (episodes.modpro.blog)
-                    h_tags = doc_soup.select("h3 a, h4 a")
-                    for h_tag in h_tags:
-                        ep_url = h_tag.get("href")
-                        if ep_url:
-                            # It's usually a vcloud or driveleech link
+                    # Instead of relying on fragile h3 a, just grab all valid looking links
+                    found_episodes = False
+                    for a_tag in doc_soup.select("a"):
+                        ep_url = a_tag.get("href")
+                        if ep_url and any(x in ep_url for x in ["vcloud", "hubcloud", "driveleech", "driveseed", "url="]):
+                            # Resolve the episode link
                             resolved = utils.resolve_link(ep_url, scraper, "MoviesMod")
-                            # Try to get episode name from the h3 text
-                            ep_name = h_tag.parent.text.strip()
+                            # Try to get episode name from the tag text or its parent
+                            ep_name = a_tag.text.strip()
+                            if not ep_name or len(ep_name) < 2:
+                                ep_name = a_tag.parent.text.strip()
+                            if not ep_name:
+                                ep_name = btn.text.strip()
+                                
                             for r in resolved:
                                 r["name"] = f"MoviesMod - {ep_name}"
                             streams.extend(resolved)
-                            
-                    if not h_tags:
-                        # Fallback
-                        streams.append({"name": "MoviesMod - " + btn.text.strip(), "url": link})
+                            if resolved:
+                                found_episodes = True
+                                
+                    if not found_episodes:
+                        # Only fallback if it looks like a direct playable link, otherwise skip to avoid breaking the player
+                        if any(x in link for x in [".mp4", ".mkv", "vcloud", "hubcloud", "driveseed", "driveleech", "gdflix"]):
+                            streams.append({"name": "MoviesMod - " + btn.text.strip(), "url": link})
             except Exception as e:
                 print("moviesmod extract error", e)
-                streams.append({"name": "MoviesMod - " + btn.text.strip(), "url": link})
+                if any(x in link for x in [".mp4", ".mkv", "vcloud", "hubcloud", "driveseed", "driveleech", "gdflix"]):
+                    streams.append({"name": "MoviesMod - " + btn.text.strip(), "url": link})
             
     return json.dumps(streams)
