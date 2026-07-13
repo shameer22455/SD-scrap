@@ -3,7 +3,7 @@
     {
       "id": "bollyflix",
       "name": "BollyFlix",
-      "version": 3,
+      "version": 4,
       "url": "https://raw.githubusercontent.com/shameer22455/SD-scrap/main/scrapers/bollyflix.py"
     },
     {
@@ -21,7 +21,7 @@
     {
       "id": "moviesmod",
       "name": "MoviesMod",
-      "version": 5,
+      "version": 6,
       "url": "https://raw.githubusercontent.com/shameer22455/SD-scrap/main/scrapers/moviesmod.py"
     },
     {
