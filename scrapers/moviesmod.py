@@ -30,9 +30,9 @@ def get_streams(query):
     movie_soup = BeautifulSoup(movie_res.text, 'html.parser')
     
     streams = []
-    for btn in movie_soup.select("a.maxbutton-download-links, a.maxbutton, a[href*='download']"):
+    for btn in movie_soup.select("a.maxbutton-download-links, a.maxbutton-episode-links, a.maxbutton-g-drive, a.maxbutton-af-download, a.maxbutton-3"):
         link = btn.get("href")
-        if link:
+        if link and not link.startswith("#") and not link.startswith("/"):
             # First level intermediate page (like vcloud or driveleech)
             if "url=" in link:
                 try:
