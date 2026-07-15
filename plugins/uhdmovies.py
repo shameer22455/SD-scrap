@@ -125,13 +125,13 @@ def load_details(url: str) -> dict:
             clean_search_name = _clean_search_title(title)
             cat = "series" if is_tv else "movie"
             search_url = f"https://v3-cinemeta.strem.io/catalog/{cat}/top/search={url_encode(clean_search_name)}.json"
-            search_resp = http.get_json(search_url)
+            search_resp = http.session.get(search_url).json()
             metas = search_resp.get("metas", [])
             if metas:
                 imdb_id = metas[0].get("imdb_id")
                 if imdb_id:
                     meta_url = f"https://v3-cinemeta.strem.io/meta/{cat}/{imdb_id}.json"
-                    meta_resp = http.get_json(meta_url)
+                    meta_resp = http.session.get(meta_url).json()
                     meta_data = meta_resp.get("meta", {})
                     cinemeta_desc = meta_data.get("description")
                     cinemeta_videos = meta_data.get("videos", [])
@@ -311,14 +311,14 @@ def bypass_shortener(url: str) -> str:
             return url
         action = form.get("action")
         inputs = {inp.get("name"): inp.get("value", "") for inp in form.select("input") if inp.get("name")}
-        resp = http.post(action, data=inputs, headers={"Referer": url})
+        resp = http.session.post(action, data=inputs, headers={"Referer": url})
         soup = BeautifulSoup(resp.text, "html.parser")
         form = soup.select_one("form#landing")
         if not form:
             return url
         action = form.get("action")
         inputs = {inp.get("name"): inp.get("value", "") for inp in form.select("input") if inp.get("name")}
-        resp = http.post(action, data=inputs, headers={"Referer": action})
+        resp = http.session.post(action, data=inputs, headers={"Referer": action})
         soup = BeautifulSoup(resp.text, "html.parser")
         script = soup.find("script", text=re.compile(r"\?go="))
         if not script:
@@ -335,7 +335,7 @@ def bypass_shortener(url: str) -> str:
             return url
         token = m.group(1)
         redirect_url = f"{action.rstrip('/')}?go={token}"
-        resp = http.get(redirect_url, headers={"Referer": action})
+        resp = http.session.get(redirect_url, headers={"Referer": action})
         m = re.search(r"replace\(\"([^\"]+)\"\)", resp.text)
         if m:
             path = m.group(1)
