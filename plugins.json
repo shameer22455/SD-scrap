@@ -11,7 +11,8 @@
       "author": "SDM Team",
       "iconUrl": null,
       "supportedTypes": [
-        "movie"
+        "movie",
+        "tv"
       ],
       "language": "en",
       "status": 1,
