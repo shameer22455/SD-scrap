@@ -7,7 +7,7 @@
       "name": "UHD Movies",
       "internalName": "uhdmovies",
       "description": "Scrapes UHDMovies.casa for high-quality 1080p/4K movie downloads.",
-      "version": 5,
+      "version": 6,
       "author": "SDM Team",
       "iconUrl": null,
       "supportedTypes": [
