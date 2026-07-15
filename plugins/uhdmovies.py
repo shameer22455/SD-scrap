@@ -60,16 +60,27 @@ def load_details(url: str) -> dict:
     try:
         soup = http.get_soup(url, cloudflare=True)
 
-        # Extract title
-        title_tag = soup.select_one("h1.entry-title, h1.title, article h1")
-        title = clean_title(title_tag.get_text(strip=True)) if title_tag else "Unknown"
+        # Extract title exactly like Cloudstream's load()
+        title_tag = soup.select_one("div.gridlove-content div.entry-header h1.entry-title")
+        title_raw = title_tag.get_text(strip=True) if title_tag else "Unknown"
+        if title_raw.startswith("Download "):
+            title_raw = title_raw[9:].strip()
 
-        # Extract poster
-        poster_tag = soup.select_one("div.post-thumbnail img, div.entry-image img, article img")
+        title_match = re.search(r"(^.*\)\d*)", title_raw)
+        title = title_match.group(1).strip() if title_match else title_raw
+
+        # Extract poster from entry-content > p img
+        poster_tag = soup.select_one("div.entry-content > p img")
         poster = poster_tag.get("src") if poster_tag else None
 
-        # Extract plot — first substantial paragraph
-        plot_candidates = soup.select("div.entry-content p, div.post-content p")
+        # Extract year
+        year_match = re.search(r'(?<=\()[\d(\]]+(?!\))', title_raw)
+        if not year_match:
+             year_match = re.search(r'\b(20\d{2})\b', title_raw)
+        year = year_match.group(0) if year_match else None
+
+        # Extract plot
+        plot_candidates = soup.select("div.entry-content p")
         plot = None
         for p in plot_candidates:
             text = p.get_text(strip=True)
@@ -77,13 +88,8 @@ def load_details(url: str) -> dict:
                 plot = text
                 break
 
-        # Extract year from title or page text
-        year_match = re.search(r'\b(20\d{2})\b', soup.get_text())
-        year = year_match.group(1) if year_match else None
-
-        # Extract the download/fastserver link as the dataUrl
-        # UHDMovies typically has gdrive or fastserver links behind buttons
-        link_candidates = soup.select("a[href*='fastserver'], a[href*='gdtot'], a.maxbutton, a[href*='driveseed']")
+        # Extract the fastserver/driveseed links correctly 
+        link_candidates = soup.select("a.maxbutton, a[href*='fastserver'], a[href*='gdtot'], a[href*='driveseed']")
         data_url = link_candidates[0].get("href") if link_candidates else url
 
         return movie_response(
@@ -100,10 +106,6 @@ def load_details(url: str) -> dict:
 
 
 def load_links(data_url: str) -> list:
-    """
-    UHDMovies uses a token-gated download system (Driveseed/Fastserver).
-    This function extracts the direct streamable/downloadable link.
-    """
     logger.info(f"{PLUGIN_NAME}: extracting stream links from {data_url}")
     links = []
 
@@ -111,7 +113,7 @@ def load_links(data_url: str) -> list:
         resp = http.get(data_url, cloudflare=True)
         html = resp.text
 
-        # Strategy 1: Driveseed token-based API extraction
+        # Driveseed / Fastserver token API bypass
         token_match = re.search(r"formData\.append\('token',\s*'([a-f0-9]+)'\)", html)
         dl_path_match = re.search(r"fetch\('(/download\?id=[a-zA-Z0-9/+=%]+)'", html)
 
@@ -137,7 +139,7 @@ def load_links(data_url: str) -> list:
                     referer=data_url
                 ))
 
-        # Strategy 2: Direct MP4/M3U8 regex scan
+        # Direct MP4/M3U8 regex scan fallback
         if not links:
             for pattern, media_type in [
                 (r'https?://[^\s"\']+\.m3u8(?:[^\s"\']*)', "HLS"),
@@ -163,27 +165,33 @@ def load_links(data_url: str) -> list:
 # ─── Internal Helpers ─────────────────────────────────────────────────────────
 
 def _parse_article_list(soup) -> list:
-    """Parse UHDMovies article grid into SdmSearchResponse list."""
+    """Parse UHDMovies article grid exactly like Cloudstream toSearchResult()."""
     items = []
-    for article in soup.select("article"):
-        # Title — UHDMovies uses h1.sanket or h2 inside the article
-        title_el = article.select_one("h1.sanket, h2.entry-title, h3")
+    for article in soup.select("article.gridlove-post"):
+        title_el = article.select_one("h1.sanket")
         if not title_el:
             continue
-        title = clean_title(title_el.get_text(strip=True))
+        
+        title_raw = title_el.get_text(strip=True)
+        if title_raw.startswith("Download "):
+            title_raw = title_raw[9:].strip()
+            
+        title_match = re.search(r"(^.*\)\d*)", title_raw)
+        title = title_match.group(1).strip() if title_match else title_raw
 
-        # URL — first anchor inside the article
-        link_el = article.select_one("a[href]")
+        link_el = article.select_one("div.entry-image > a")
         url = link_el.get("href") if link_el else None
-        if not url or not url.startswith("http"):
+        if not url:
             continue
 
-        # Poster image
-        img_el = article.select_one("img[src]")
-        poster = img_el.get("src") if img_el else None
+        img_el = article.select_one("div.entry-image > a > img")
+        poster = None
+        if img_el:
+            poster = img_el.get("data-src")
+            if not poster:
+                poster = img_el.get("src")
 
-        # Year from title text
-        year_match = re.search(r'\b(20\d{2})\b', title)
+        year_match = re.search(r'\b(20\d{2})\b', title_raw)
         year = year_match.group(1) if year_match else None
 
         items.append(search_response(
@@ -194,3 +202,4 @@ def _parse_article_list(soup) -> list:
             year=year
         ))
     return items
+
