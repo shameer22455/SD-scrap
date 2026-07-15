@@ -20,12 +20,6 @@ import re
 PLUGIN_NAME = "UHD Movies"
 MAIN_URL = "https://uhdmovies.casa"
 
-DESKTOP_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Connection": "keep-alive"
-}
 
 # ─── Contract Functions ───────────────────────────────────────────────────────
 
@@ -38,25 +32,53 @@ def get_supported_types() -> list:
 
 
 def get_main_page() -> dict:
-    logger.info(f"{PLUGIN_NAME}: loading home page from {MAIN_URL}")
+    logger.info(f"{PLUGIN_NAME}: loading home page categories")
+    lists = []
+    
+    # 1. Trending / Latest (Home)
     try:
-        resp = http.get(MAIN_URL, headers=DESKTOP_HEADERS, cloudflare=True)
-        logger.info(f"{PLUGIN_NAME} home page fetch: status={resp.status_code}, len={len(resp.text)}, content_preview={resp.text[:200]}")
-        soup = http.get_soup(MAIN_URL, headers=DESKTOP_HEADERS, cloudflare=True)
+        soup = http.get_soup(MAIN_URL, cloudflare=True)
         items = _parse_article_list(soup)
-        return home_page_response([
-            home_page_list("Latest Movies", items)
-        ])
+        if items:
+            lists.append(home_page_list("Trending & Latest", items))
     except Exception as e:
-        logger.error(f"{PLUGIN_NAME}: get_main_page failed: {e}", exc_info=True)
-        return home_page_response([])
+        logger.error(f"{PLUGIN_NAME}: failed to load Trending category: {e}")
+
+    # 2. Hollywood Movies Collection
+    try:
+        soup = http.get_soup(f"{MAIN_URL}/movies/collection-movies/", cloudflare=True)
+        items = _parse_article_list(soup)
+        if items:
+            lists.append(home_page_list("Hollywood Movies", items))
+    except Exception as e:
+        logger.error(f"{PLUGIN_NAME}: failed to load Hollywood category: {e}")
+
+    # 3. Netflix Series
+    try:
+        soup = http.get_soup(f"{MAIN_URL}/tv-shows/netflix/", cloudflare=True)
+        items = _parse_article_list(soup)
+        if items:
+            lists.append(home_page_list("Netflix Collection", items))
+    except Exception as e:
+        logger.error(f"{PLUGIN_NAME}: failed to load Netflix category: {e}")
+
+    # 4. 4K Ultra HD
+    try:
+        soup = http.get_soup(f"{MAIN_URL}/4k-hdr/", cloudflare=True)
+        items = _parse_article_list(soup)
+        if items:
+            lists.append(home_page_list("4K Ultra HD", items))
+    except Exception as e:
+        logger.error(f"{PLUGIN_NAME}: failed to load 4K HDR category: {e}")
+
+    return home_page_response(lists)
 
 
 def search(query: str) -> list:
     logger.info(f"{PLUGIN_NAME}: searching for '{query}'")
     try:
         search_url = f"{MAIN_URL}/?s={url_encode(query)}"
-        soup = http.get_soup(search_url, headers=DESKTOP_HEADERS, cloudflare=True)
+        soup = http.get_soup(search_url, cloudflare=True)
         return _parse_article_list(soup)
     except Exception as e:
         logger.error(f"{PLUGIN_NAME}: search failed: {e}", exc_info=True)
@@ -66,7 +88,7 @@ def search(query: str) -> list:
 def load_details(url: str) -> dict:
     logger.info(f"{PLUGIN_NAME}: loading details for {url}")
     try:
-        soup = http.get_soup(url, headers=DESKTOP_HEADERS, cloudflare=True)
+        soup = http.get_soup(url, cloudflare=True)
 
         # Extract title exactly like Cloudstream's load()
         title_tag = soup.select_one("div.gridlove-content div.entry-header h1.entry-title")
@@ -80,6 +102,8 @@ def load_details(url: str) -> dict:
         # Extract poster from entry-content > p img
         poster_tag = soup.select_one("div.entry-content > p img")
         poster = poster_tag.get("src") if poster_tag else None
+        if poster:
+            poster = re.sub(r'-\d+x\d+(\.[a-zA-Z]+)$', r'\1', poster)
 
         # Extract year
         year_match = re.search(r'(?<=\()[\d(\]]+(?!\))', title_raw)
@@ -204,6 +228,10 @@ def _parse_article_list(soup) -> list:
             poster = img_el.get("data-src")
             if not poster:
                 poster = img_el.get("src")
+        
+        if poster:
+            # Clean WP resize suffix (e.g. -370x290.jpg -> .jpg) to get high-resolution original image
+            poster = re.sub(r'-\d+x\d+(\.[a-zA-Z]+)$', r'\1', poster)
 
         year_match = re.search(r'\b(20\d{2})\b', title_raw)
         year = year_match.group(1) if year_match else None

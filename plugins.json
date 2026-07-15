@@ -10,7 +10,9 @@
       "version": 3,
       "author": "SDM Team",
       "iconUrl": null,
-      "supportedTypes": ["movie"],
+      "supportedTypes": [
+        "movie"
+      ],
       "language": "en",
       "status": 1,
       "fileUrl": "https://raw.githubusercontent.com/shameer22455/SD-scrap/main/plugins/uhdmovies.py",
@@ -23,7 +25,11 @@
       "version": 1,
       "author": "SDM Team",
       "iconUrl": null,
-      "supportedTypes": ["movie", "tv", "anime"],
+      "supportedTypes": [
+        "movie",
+        "tv",
+        "anime"
+      ],
       "language": "en",
       "status": 1,
       "fileUrl": "https://raw.githubusercontent.com/shameer22455/SD-scrap/main/plugins/sample.py",
