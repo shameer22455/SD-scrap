@@ -112,20 +112,43 @@ def load_details(url: str) -> dict:
              year_match = re.search(r'\b(20\d{2})\b', title_raw)
         year = year_match.group(0) if year_match else None
 
-        # Extract plot
-        plot_candidates = soup.select("div.entry-content p")
-        plot = None
-        for p in plot_candidates:
-            text = p.get_text(strip=True)
-            if len(text) > 60:
-                plot = text
-                break
-
         # Check if TV Series
         is_tv = False
         title_lower = title_raw.lower()
         if "season" in title_lower or "s0" in title_lower or "complete" in title_lower or "episodes" in title_lower or "tv-shows" in url or "series" in url:
             is_tv = True
+
+        # Fetch Cinemeta Metadata (Real overview description, episode names, thumbs, air dates)
+        cinemeta_desc = None
+        cinemeta_videos = []
+        try:
+            clean_search_name = _clean_search_title(title)
+            cat = "series" if is_tv else "movie"
+            search_url = f"https://v3-cinemeta.strem.io/catalog/{cat}/top/search={url_encode(clean_search_name)}.json"
+            search_resp = http.session.get(search_url).json()
+            metas = search_resp.get("metas", [])
+            if metas:
+                imdb_id = metas[0].get("imdb_id")
+                if imdb_id:
+                    meta_url = f"https://v3-cinemeta.strem.io/meta/{cat}/{imdb_id}.json"
+                    meta_resp = http.session.get(meta_url).json()
+                    meta_data = meta_resp.get("meta", {})
+                    cinemeta_desc = meta_data.get("description")
+                    cinemeta_videos = meta_data.get("videos", [])
+                    if meta_data.get("poster"):
+                        poster = meta_data.get("poster")
+        except Exception as meta_err:
+            logger.warning(f"Failed to load Cinemeta metadata for {title}: {meta_err}")
+
+        # Extract plot fallback
+        plot = cinemeta_desc
+        if not plot:
+            plot_candidates = soup.select("div.entry-content p")
+            for p in plot_candidates:
+                text = p.get_text(strip=True)
+                if len(text) > 60:
+                    plot = text
+                    break
 
         # Parse episodes if TV Series
         episodes_list = []
@@ -148,13 +171,25 @@ def load_details(url: str) -> dict:
                         ep_match = re.search(r'(?i)(?:episode\s+|ep\s+|e|ep)(\d+)', text)
                         if ep_match:
                             ep_num = int(ep_match.group(1))
-                            quality_match = re.search(r'(2160p|1080p|720p|480p)', text, re.IGNORECASE)
-                            q_suffix = f" ({quality_match.group(1)})" if quality_match else ""
+                            
+                            # Match episode with Cinemeta videos to fetch clean names/thumbnails/plots
+                            ep_name = f"Episode {ep_num}"
+                            ep_plot = ""
+                            ep_thumb = None
+                            for video in cinemeta_videos:
+                                if video.get("season") == current_season and (video.get("number") == ep_num or video.get("episode") == ep_num):
+                                    ep_name = video.get("name", ep_name)
+                                    ep_plot = video.get("description") or video.get("overview", "")
+                                    ep_thumb = video.get("thumbnail")
+                                    break
+                            
                             episodes_list.append(episode(
-                                name=f"Season {current_season} - Episode {ep_num}{q_suffix}",
+                                name=ep_name,
                                 data=href,
                                 episode_num=ep_num,
-                                season=current_season
+                                season=current_season,
+                                poster_url=ep_thumb,
+                                description=ep_plot
                             ))
                         elif any(p in text.lower() for p in ["pack", "complete", "zip"]):
                             quality_match = re.search(r'(2160p|1080p|720p|480p)', text, re.IGNORECASE)
@@ -189,6 +224,16 @@ def load_details(url: str) -> dict:
     except Exception as e:
         logger.error(f"{PLUGIN_NAME}: load_details failed: {e}", exc_info=True)
         return movie_response(name="Error", url=url, data_url=url)
+
+
+def _clean_search_title(title: str) -> str:
+    # Clean titles like "House Of The Dragon (Season 1 – 3) (2022)" to "House Of The Dragon"
+    t = re.sub(r'\(.*?\)', '', title)
+    t = re.sub(r'\[.*?\]', '', t)
+    t = re.sub(r'(?i)\bseason\s*\d+\b', '', t)
+    t = re.sub(r'(?i)\bs\d+\b', '', t)
+    t = re.sub(r'\s*–\s*\d+', '', t)
+    return t.strip()
 
 
 def load_links(data_url: str) -> list:
