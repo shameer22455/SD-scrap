@@ -167,8 +167,14 @@ def load_links(data_url: str) -> list:
 def _parse_article_list(soup) -> list:
     """Parse UHDMovies article grid exactly like Cloudstream toSearchResult()."""
     items = []
-    for article in soup.select("article.gridlove-post"):
-        title_el = article.select_one("h1.sanket")
+    
+    # Fallback to general article if gridlove-post is missing
+    articles = soup.select("article.gridlove-post")
+    if not articles:
+        articles = soup.select("article")
+        
+    for article in articles:
+        title_el = article.select_one("h1.sanket, h2.entry-title, h2, h3")
         if not title_el:
             continue
         
@@ -179,12 +185,12 @@ def _parse_article_list(soup) -> list:
         title_match = re.search(r"(^.*\)\d*)", title_raw)
         title = title_match.group(1).strip() if title_match else title_raw
 
-        link_el = article.select_one("div.entry-image > a")
+        link_el = article.select_one("div.entry-image > a, a[href]")
         url = link_el.get("href") if link_el else None
         if not url:
             continue
 
-        img_el = article.select_one("div.entry-image > a > img")
+        img_el = article.select_one("div.entry-image > a > img, img[src]")
         poster = None
         if img_el:
             poster = img_el.get("data-src")
@@ -201,5 +207,11 @@ def _parse_article_list(soup) -> list:
             media_type="movie",
             year=year
         ))
+        
+    if not items:
+        # Debugging: Log why it failed
+        page_title = soup.title.string if soup.title else "No Title"
+        logger.warning(f"UHDMovies _parse_article_list found 0 items! Page title: {page_title}. Articles found: {len(articles)}")
+        
     return items
 
