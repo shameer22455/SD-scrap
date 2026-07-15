@@ -34,6 +34,8 @@ def get_supported_types() -> list:
 def get_main_page() -> dict:
     logger.info(f"{PLUGIN_NAME}: loading home page from {MAIN_URL}")
     try:
+        resp = http.get(MAIN_URL, cloudflare=True)
+        logger.info(f"{PLUGIN_NAME} home page fetch: status={resp.status_code}, len={len(resp.text)}, content_preview={resp.text[:200]}")
         soup = http.get_soup(MAIN_URL, cloudflare=True)
         items = _parse_article_list(soup)
         return home_page_response([
