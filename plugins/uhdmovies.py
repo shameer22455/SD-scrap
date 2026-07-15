@@ -10,10 +10,11 @@ Uses the SDM Python SDK exclusively (sdm_api).
 from sdm_api import (
     http, logger,
     search_response, home_page_list, home_page_response,
-    movie_response, stream_link,
+    movie_response, tv_response, episode, stream_link,
     extract_quality, clean_title, url_encode
 )
 import re
+from bs4 import BeautifulSoup
 
 # ─── Plugin Metadata ──────────────────────────────────────────────────────────
 
@@ -28,7 +29,7 @@ def get_name() -> str:
 
 
 def get_supported_types() -> list:
-    return ["movie"]
+    return ["movie", "tv"]
 
 
 def get_main_page() -> dict:
@@ -120,18 +121,71 @@ def load_details(url: str) -> dict:
                 plot = text
                 break
 
-        # Extract the fastserver/driveseed links correctly 
-        link_candidates = soup.select("a.maxbutton, a[href*='fastserver'], a[href*='gdtot'], a[href*='driveseed']")
-        data_url = link_candidates[0].get("href") if link_candidates else url
+        # Check if TV Series
+        is_tv = False
+        title_lower = title_raw.lower()
+        if "season" in title_lower or "s0" in title_lower or "complete" in title_lower or "episodes" in title_lower or "tv-shows" in url or "series" in url:
+            is_tv = True
 
-        return movie_response(
-            name=title,
-            url=url,
-            data_url=data_url,
-            poster_url=poster,
-            plot=plot,
-            year=year
-        )
+        # Parse episodes if TV Series
+        episodes_list = []
+        content = soup.select_one("div.entry-content")
+        link_candidates = soup.select("a.maxbutton, a[href*='fastserver'], a[href*='gdtot'], a[href*='driveseed'], a[href*='techmny'], a[href*='howard']")
+
+        if is_tv and content:
+            current_season = 1
+            # Walk through paragraph text/headings to capture season, and links for episodes
+            for child in content.descendants:
+                if child.name in ["h1", "h2", "h3", "h4", "p", "span"]:
+                    text = child.get_text()
+                    season_match = re.search(r'(?i)(?:season\s+|s)(\d+)', text)
+                    if season_match:
+                        current_season = int(season_match.group(1))
+                elif child.name == "a" and child.get("href"):
+                    href = child.get("href")
+                    text = child.get_text(strip=True)
+                    if any(x in href for x in ["fastserver", "driveseed", "gdtot", "techmny", "howard"]) or "maxbutton" in child.get("class", []):
+                        ep_match = re.search(r'(?i)(?:episode\s+|ep\s+|e|ep)(\d+)', text)
+                        if ep_match:
+                            ep_num = int(ep_match.group(1))
+                            quality_match = re.search(r'(2160p|1080p|720p|480p)', text, re.IGNORECASE)
+                            q_suffix = f" ({quality_match.group(1)})" if quality_match else ""
+                            episodes_list.append(episode(
+                                name=f"Season {current_season} - Episode {ep_num}{q_suffix}",
+                                data=href,
+                                episode_num=ep_num,
+                                season=current_season
+                            ))
+                        elif any(p in text.lower() for p in ["pack", "complete", "zip"]):
+                            quality_match = re.search(r'(2160p|1080p|720p|480p)', text, re.IGNORECASE)
+                            q_suffix = f" ({quality_match.group(1)})" if quality_match else ""
+                            episodes_list.append(episode(
+                                name=f"Season {current_season} Complete Pack{q_suffix}",
+                                data=href,
+                                episode_num=100 + len(episodes_list),
+                                season=current_season
+                            ))
+
+        if not is_tv or not episodes_list:
+            data_url = link_candidates[0].get("href") if link_candidates else url
+            return movie_response(
+                name=title,
+                url=url,
+                data_url=data_url,
+                poster_url=poster,
+                plot=plot,
+                year=year
+            )
+        else:
+            return tv_response(
+                name=title,
+                url=url,
+                data_url=url,
+                episodes=episodes_list,
+                poster_url=poster,
+                plot=plot,
+                year=year
+            )
     except Exception as e:
         logger.error(f"{PLUGIN_NAME}: load_details failed: {e}", exc_info=True)
         return movie_response(name="Error", url=url, data_url=url)
@@ -142,7 +196,10 @@ def load_links(data_url: str) -> list:
     links = []
 
     try:
-        resp = http.get(data_url, cloudflare=True)
+        final_data_url = bypass_shortener(data_url)
+        logger.info(f"{PLUGIN_NAME}: bypassed URL is {final_data_url}")
+
+        resp = http.get(final_data_url, cloudflare=True)
         html = resp.text
 
         # Driveseed / Fastserver token API bypass
@@ -151,14 +208,14 @@ def load_links(data_url: str) -> list:
 
         if token_match and dl_path_match:
             from urllib.parse import urlparse
-            parsed = urlparse(data_url)
+            parsed = urlparse(final_data_url)
             domain = f"{parsed.scheme}://{parsed.netloc}"
             api_url = domain + dl_path_match.group(1)
 
             json_resp = http.post_json(
                 api_url,
                 data={"token": token_match.group(1)},
-                headers={"X-Requested-With": "XMLHttpRequest", "Referer": data_url}
+                headers={"X-Requested-With": "XMLHttpRequest", "Referer": final_data_url}
             )
             final_url = json_resp.get("url", "").replace("\\/", "/")
             if final_url:
@@ -168,7 +225,7 @@ def load_links(data_url: str) -> list:
                     name=f"UHD Server {quality}p",
                     source=PLUGIN_NAME,
                     quality=quality,
-                    referer=data_url
+                    referer=final_data_url
                 ))
 
         # Direct MP4/M3U8 regex scan fallback
@@ -185,7 +242,7 @@ def load_links(data_url: str) -> list:
                         name=f"{media_type} {quality}p",
                         source=PLUGIN_NAME,
                         quality=quality,
-                        referer=data_url
+                        referer=final_data_url
                     ))
 
     except Exception as e:
@@ -195,6 +252,64 @@ def load_links(data_url: str) -> list:
 
 
 # ─── Internal Helpers ─────────────────────────────────────────────────────────
+
+def bypass_shortener(url: str) -> str:
+    if not url:
+        return ""
+    if any(x in url for x in ["fastserver", "driveseed", "vcloud", "gdtot", "gdflix"]):
+        return url
+    try:
+        logger.info(f"{PLUGIN_NAME}: bypassing shortener for {url}")
+        soup = http.get_soup(url, cloudflare=True)
+        form = soup.select_one("form#landing")
+        if not form:
+            return url
+        action = form.get("action")
+        inputs = {inp.get("name"): inp.get("value", "") for inp in form.select("input") if inp.get("name")}
+        resp = http.session.post(action, data=inputs, headers={"Referer": url})
+        soup = BeautifulSoup(resp.text, "html.parser")
+        form = soup.select_one("form#landing")
+        if not form:
+            return url
+        action = form.get("action")
+        inputs = {inp.get("name"): inp.get("value", "") for inp in form.select("input") if inp.get("name")}
+        resp = http.session.post(action, data=inputs, headers={"Referer": action})
+        soup = BeautifulSoup(resp.text, "html.parser")
+        script = soup.find("script", text=re.compile(r"\?go="))
+        if not script:
+            refresh = soup.select_one("meta[http-equiv=refresh]")
+            if refresh:
+                content = refresh.get("content", "")
+                m = re.search(r"url=(https?://\S+)", content, re.IGNORECASE)
+                if m:
+                    return m.group(1)
+            return url
+        script_text = script.string
+        m = re.search(r"\?go=([a-zA-Z0-9/+=%_-]+)", script_text)
+        if not m:
+            return url
+        token = m.group(1)
+        redirect_url = f"{action.rstrip('/')}?go={token}"
+        resp = http.session.get(redirect_url, headers={"Referer": action})
+        m = re.search(r"replace\(\"([^\"]+)\"\)", resp.text)
+        if m:
+            path = m.group(1)
+            if path == "/404":
+                return url
+            from urllib.parse import urljoin
+            return urljoin(redirect_url, path)
+        soup = BeautifulSoup(resp.text, "html.parser")
+        refresh = soup.select_one("meta[http-equiv=refresh]")
+        if refresh:
+            content = refresh.get("content", "")
+            m = re.search(r"url=(https?://\S+)", content, re.IGNORECASE)
+            if m:
+                return m.group(1)
+        return url
+    except Exception as e:
+        logger.error(f"Error bypassing shortener: {e}")
+        return url
+
 
 def _parse_article_list(soup) -> list:
     """Parse UHDMovies article grid exactly like Cloudstream toSearchResult()."""
@@ -236,11 +351,16 @@ def _parse_article_list(soup) -> list:
         year_match = re.search(r'\b(20\d{2})\b', title_raw)
         year = year_match.group(1) if year_match else None
 
+        is_tv = False
+        title_lower = title_raw.lower()
+        if "season" in title_lower or "s0" in title_lower or "complete" in title_lower or "episodes" in title_lower:
+            is_tv = True
+
         items.append(search_response(
             name=title,
             url=url,
             poster_url=poster,
-            media_type="movie",
+            media_type="tv" if is_tv else "movie",
             year=year
         ))
         
