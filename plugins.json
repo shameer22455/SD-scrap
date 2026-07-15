@@ -13,7 +13,7 @@
       "supportedTypes": ["movie"],
       "language": "en",
       "status": 1,
-      "fileUrl": "https://raw.githubusercontent.com/YOUR_GITHUB_USER/SDM_Plugins/main/plugins/uhdmovies.py",
+      "fileUrl": "https://raw.githubusercontent.com/shameer22455/SD-scrap/main/plugins/uhdmovies.py",
       "fileHash": null
     },
     {
@@ -26,7 +26,7 @@
       "supportedTypes": ["movie", "tv", "anime"],
       "language": "en",
       "status": 1,
-      "fileUrl": "https://raw.githubusercontent.com/YOUR_GITHUB_USER/SDM_Plugins/main/plugins/sample.py",
+      "fileUrl": "https://raw.githubusercontent.com/shameer22455/SD-scrap/main/plugins/sample.py",
       "fileHash": null
     }
   ]
