@@ -20,6 +20,12 @@ import re
 PLUGIN_NAME = "UHD Movies"
 MAIN_URL = "https://uhdmovies.casa"
 
+DESKTOP_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Connection": "keep-alive"
+}
 
 # ─── Contract Functions ───────────────────────────────────────────────────────
 
@@ -34,9 +40,9 @@ def get_supported_types() -> list:
 def get_main_page() -> dict:
     logger.info(f"{PLUGIN_NAME}: loading home page from {MAIN_URL}")
     try:
-        resp = http.get(MAIN_URL, cloudflare=True)
+        resp = http.get(MAIN_URL, headers=DESKTOP_HEADERS, cloudflare=True)
         logger.info(f"{PLUGIN_NAME} home page fetch: status={resp.status_code}, len={len(resp.text)}, content_preview={resp.text[:200]}")
-        soup = http.get_soup(MAIN_URL, cloudflare=True)
+        soup = http.get_soup(MAIN_URL, headers=DESKTOP_HEADERS, cloudflare=True)
         items = _parse_article_list(soup)
         return home_page_response([
             home_page_list("Latest Movies", items)
@@ -50,7 +56,7 @@ def search(query: str) -> list:
     logger.info(f"{PLUGIN_NAME}: searching for '{query}'")
     try:
         search_url = f"{MAIN_URL}/?s={url_encode(query)}"
-        soup = http.get_soup(search_url, cloudflare=True)
+        soup = http.get_soup(search_url, headers=DESKTOP_HEADERS, cloudflare=True)
         return _parse_article_list(soup)
     except Exception as e:
         logger.error(f"{PLUGIN_NAME}: search failed: {e}", exc_info=True)
@@ -60,7 +66,7 @@ def search(query: str) -> list:
 def load_details(url: str) -> dict:
     logger.info(f"{PLUGIN_NAME}: loading details for {url}")
     try:
-        soup = http.get_soup(url, cloudflare=True)
+        soup = http.get_soup(url, headers=DESKTOP_HEADERS, cloudflare=True)
 
         # Extract title exactly like Cloudstream's load()
         title_tag = soup.select_one("div.gridlove-content div.entry-header h1.entry-title")
