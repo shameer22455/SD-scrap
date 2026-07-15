@@ -1,0 +1,33 @@
+{
+  "name": "SDM Official Plugins",
+  "description": "The official SDM plugin repository. All plugins use the sdm_api SDK.",
+  "manifestVersion": 1,
+  "plugins": [
+    {
+      "name": "UHD Movies",
+      "internalName": "uhdmovies",
+      "description": "Scrapes UHDMovies.casa for high-quality 1080p/4K movie downloads.",
+      "version": 1,
+      "author": "SDM Team",
+      "iconUrl": null,
+      "supportedTypes": ["movie"],
+      "language": "en",
+      "status": 1,
+      "fileUrl": "https://raw.githubusercontent.com/YOUR_GITHUB_USER/SDM_Plugins/main/plugins/uhdmovies.py",
+      "fileHash": null
+    },
+    {
+      "name": "SDM Sample",
+      "internalName": "sample",
+      "description": "Template plugin for developers. Returns dummy data.",
+      "version": 1,
+      "author": "SDM Team",
+      "iconUrl": null,
+      "supportedTypes": ["movie", "tv", "anime"],
+      "language": "en",
+      "status": 1,
+      "fileUrl": "https://raw.githubusercontent.com/YOUR_GITHUB_USER/SDM_Plugins/main/plugins/sample.py",
+      "fileHash": null
+    }
+  ]
+}
